@@ -1,0 +1,166 @@
+#利用决策树算法，对mnist数据集进行测试
+
+from os import listdir
+import numpy as np
+
+#读取数据
+# fileDir ： 数据文件所在的文件夹目录
+def readDataSet(fileDir):
+    fileList = listdir(fileDir)
+    m = len(fileList)
+    dataSet = np.zeros((m, 1025))
+    index = 0
+    for fileName in fileList:
+        fr = open(fileDir + "/" + fileName)
+        for i in range(32):
+            line = fr.readline()
+            for j in range(32):
+                dataSet[index][32 * i + j] = int(line[j])
+        dataLabel = int((fileName.split('.')[0]).split('_')[0])
+        dataSet[index][-1] = str(dataLabel)
+        index += 1
+
+    return dataSet
+
+#计算熵
+def calcEntropy(dataSet):
+    mD = len(dataSet)
+    dataLabelList = [x[-1] for x in dataSet]
+    dataLabelSet = set(dataLabelList)
+    ent = 0
+    for label in dataLabelSet:
+        mDv = dataLabelList.count(label)
+        prop = float(mDv) / mD
+        ent = ent - prop * np.math.log(prop, 2)
+
+    return ent
+
+# # 拆分数据集
+# # index - 要拆分的特征的下标
+# # feature - 要拆分的特征
+# # 返回值 - dataSet中index所在特征为feature，且去掉index一列的集合
+def splitDataSet(dataSet, index, feature):
+    splitedDataSet = []
+    mD = len(dataSet)
+    for data in dataSet:
+        if(data[index] == feature):
+            sliceTmp = data[:index]
+            sliceTmp.extend(data[index + 1:])
+            splitedDataSet.append(sliceTmp)
+    return splitedDataSet
+
+#根据信息增益 - 选择最好的特征
+# 返回值 - 最好的特征的下标
+def chooseBestFeature(dataSet):
+    entD = calcEntropy(dataSet)
+    mD = len(dataSet)
+    featureNumber = len(dataSet[0]) - 1
+    maxGain = -100
+    maxIndex = -1
+    for i in range(featureNumber):
+        entDCopy = entD
+        featureI = [x[i] for x in dataSet]
+        featureSet = set(featureI)
+        for feature in featureSet:
+            splitedDataSet = splitDataSet(dataSet, i, feature)  # 拆分数据集
+            mDv = len(splitedDataSet)
+            entDCopy = entDCopy - float(mDv) / mD * calcEntropy(splitedDataSet)
+        if(maxIndex == -1):
+            maxGain = entDCopy
+            maxIndex = i
+        elif(maxGain < entDCopy):
+            maxGain = entDCopy
+            maxIndex = i
+
+    return maxIndex
+
+# 寻找最多的，作为标签
+def mainLabel(labelList):
+    labelRec = labelList[0]
+    maxLabelCount = -1
+    labelSet = set(labelList)
+    for label in labelSet:
+        if(labelList.count(label) > maxLabelCount):
+            maxLabelCount = labelList.count(label)
+            labelRec = label
+    return labelRec
+
+# 生成树
+# def createDecisionTree(dataSet, featureNames):
+#     labelList = [x[-1] for x in dataSet]
+#     if(len(dataSet[0]) == 1): #没有可划分的属性了
+#         return mainLabel(labelList)  #选出最多的label作为该数据集的标签
+#     elif(labelList.count(labelList[0]) == len(labelList)): # 全部都属于同一个Label
+#         return labelList[0]
+#
+#     bestFeatureIndex = chooseBestFeature(dataSet)
+#     bestFeatureName = featureNames.pop(bestFeatureIndex)
+#     myTree = {bestFeatureName: {}}
+#     featureList = [x[bestFeatureIndex] for x in dataSet]
+#     featureSet = set(featureList)
+#     for feature in featureSet:
+#         featureNamesNext = featureNames[:]
+#         splitedDataSet = splitDataSet(dataSet, bestFeatureIndex, feature)
+#         myTree[bestFeatureName][feature] = createDecisionTree(splitedDataSet, featureNamesNext)
+#     return myTree
+
+#生成 完整的 决策树
+# featureNamesSet 是featureNames取值的集合
+# labelListParent 是父节点的标签列表
+def createFullDecisionTree(dataSet, featureNames, featureNamesSet, labelListParent):
+    labelList = [x[-1] for x in dataSet]
+    if(len(dataSet) == 0):
+        print("2222")
+        return mainLabel(labelListParent)
+    elif(len(dataSet[0]) == 1): #没有可划分的属性了
+        print("3333")
+        return mainLabel(labelList)  #选出最多的label作为该数据集的标签
+    elif(labelList.count(labelList[0]) == len(labelList)): # 全部都属于同一个Label
+        return labelList[0]
+
+    bestFeatureIndex = chooseBestFeature(dataSet)
+    bestFeatureName = featureNames.pop(bestFeatureIndex)
+    myTree = {bestFeatureName: {}}
+    featureList = featureNamesSet.pop(bestFeatureIndex)
+    featureSet = set(featureList)
+    for feature in featureSet:
+        featureNamesNext = featureNames[:]
+        featureNamesSetNext = featureNamesSet[:][:]
+        splitedDataSet = splitDataSet(dataSet, bestFeatureIndex, feature)
+        myTree[bestFeatureName][feature] = createFullDecisionTree(splitedDataSet, featureNamesNext, featureNamesSetNext, labelList)
+    return myTree
+
+
+#读取西瓜数据集2.0
+def readWatermelonDataSet():
+    ifile = open("周志华_西瓜数据集2.txt")
+    featureName = ifile.readline()  #表头
+    featureNames = (featureName.split(' ')[0]).split(',')
+    lines = ifile.readlines()
+    dataSet = []
+    for line in lines:
+        tmp = line.split('\n')[0]
+        tmp = tmp.split(',')
+        dataSet.append(tmp)
+
+    #获取featureNamesSet
+    featureNamesSet = []
+    for i in range(len(dataSet[0]) - 1):
+        col = [x[i] for x in dataSet]
+        colSet = set(col)
+        featureNamesSet.append(list(colSet))
+
+    return dataSet, featureNames, featureNamesSet
+
+def main():
+    #读取数据
+    trainingDataSet = readDataSet("data/trainingDigits")
+    featureNames = [str(x) for x in range(1024)]
+
+
+    dataSet, featureNames, featureNamesSet = readWatermelonDataSet()
+    print(createFullDecisionTree(dataSet, featureNames, featureNamesSet, []))
+    #print(createTree(dataSet, labels))
+
+if __name__ == "__main__":
+    main()
